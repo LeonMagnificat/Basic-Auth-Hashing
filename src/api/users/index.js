@@ -1,58 +1,89 @@
-import express, { response, Router } from "express";
-import fs from "fs";
-import { dirname, join } from "path";
-import uniqid from "uniqid";
-import { fileURLToPath } from "url";
+import express from "express";
+import q2m from "query-to-mongo";
+import UserModel from "./model.js";
+import { basicAuth } from "../../library/authentications/basicAuth.js";
+import blogModel from "../blogs/model.js";
 
-const currentPath = import.meta.url;
-const currentPathtoURL = fileURLToPath(currentPath);
-const parentPath = dirname(currentPathtoURL);
+const userRouter = express.Router();
 
-const authorsJSONfilePath = join(parentPath, "authors.json");
-
-const authorsRouter = express.Router();
-
-authorsRouter.post("/", (request, response) => {
-  console.log("added author", request.body);
-  const newAuthor = { ...request.body, date: new Date(), id: uniqid() };
-  console.log("saved author", newAuthor);
-
-  const authorsArray = JSON.parse(fs.readFileSync(authorsJSONfilePath));
-  authorsArray.push(newAuthor);
-  fs.writeFileSync(authorsJSONfilePath, JSON.stringify(authorsArray));
-  response.status(201).send(newAuthor);
+userRouter.post("/", async (request, response, next) => {
+  try {
+    const newUser = new UserModel(request.body);
+    await newUser.save();
+    response.status(200).send(newUser);
+  } catch (error) {
+    next(error);
+  }
 });
 
-authorsRouter.get("/", (request, response) => {
-  const authorsbuffer = fs.readFileSync(authorsJSONfilePath);
-  const allAuthors = JSON.parse(authorsbuffer);
-  response.send(allAuthors);
+userRouter.get("/", basicAuth, async (request, response, next) => {
+  try {
+    const Users = await UserModel.find().populate({ path: "blogs" });
+    response.status(200).send(Users);
+  } catch (error) {
+    next(error);
+  }
+});
+userRouter.get("/myProfile", basicAuth, async (request, response, next) => {
+  try {
+    const myProfile = await UserModel.findById(request.user._id).populate({ path: "blogs" });
+    response.status(200).send(myProfile);
+  } catch (error) {
+    next(error);
+  }
 });
 
-authorsRouter.get("/:id", (request, response) => {
-  const id = request.params.id;
-  const authorsArray = JSON.parse(fs.readFileSync(authorsJSONfilePath));
-  const author = authorsArray.find((author) => author.id === id);
-  response.send(author);
+userRouter.get("/:id", async (request, response, next) => {
+  try {
+    const id = request.params.id;
+
+    const User = await UserModel.findById(id);
+    response.status(200).send(User);
+  } catch (error) {
+    next(error);
+  }
 });
 
-authorsRouter.put("/:id", (request, response) => {
-  const id = request.params.id;
-  const authorsArray = JSON.parse(fs.readFileSync(authorsJSONfilePath));
-  const editedAuthorIndex = authorsArray.findIndex((author) => author.id === id);
-  const oldAuthor = authorsArray[editedAuthorIndex];
-  const updatedAuthor = { ...oldAuthor, ...request.body, updated: new Date() };
-  authorsArray[editedAuthorIndex] = updatedAuthor;
-  fs.writeFileSync(authorsJSONfilePath, JSON.stringify(authorsArray));
-  response.status(200).send(updatedAuthor);
+userRouter.put("/:id", async (request, response, next) => {
+  try {
+    const id = request.params.id;
+
+    const editedUser = await UserModel.findByIdAndUpdate(id, request.body, { new: true, runValidators: true });
+    response.status(200).send(editedUser);
+  } catch (error) {
+    next(error);
+  }
 });
 
-authorsRouter.delete("/:id", (request, response) => {
-  const id = request.params.id;
-  const authorsArray = JSON.parse(fs.readFileSync(authorsJSONfilePath));
-  const remainigAuthors = authorsArray.filter((auth) => auth.id !== id);
-  fs.writeFileSync(authorsJSONfilePath, JSON.stringify(remainigAuthors));
-  response.status(200).send("deleted successfully");
+userRouter.delete("/:id", async (request, response, next) => {
+  try {
+    const id = request.params.id;
+
+    const User = await UserModel.findByIdAndDelete(id);
+    response.status(200).send("Deleted");
+  } catch (error) {
+    next(error);
+  }
 });
 
-export default authorsRouter;
+//----------------------------------------------------------------
+
+userRouter.post("/:userId/blogs", async (req, res, next) => {
+  try {
+    const newBlog = new blogModel(req.body);
+    await newBlog.save();
+
+    const blogID = newBlog._id;
+
+    console.log(newBlog._id);
+
+    const relatedUser = await UserModel.findByIdAndUpdate(req.params.userId, { $push: { blogs: blogID.toString() } }, { new: true, runValidators: true });
+
+    await relatedUser.save();
+    res.status(200).send(newBlog);
+  } catch (error) {
+    next(error);
+  }
+});
+
+export default userRouter;

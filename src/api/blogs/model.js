@@ -8,7 +8,7 @@ const blogSchema = new Schema(
     title: { type: "string", required: true },
     cover: { type: "string", required: false },
     content: { type: "string", required: true },
-    comments: [{ type: Schema.Types.ObjectId, ref: "comment" }],
+    comments: [{ type: Schema.Types.ObjectId, ref: "comments" }],
   },
   { timestamps: true }
 );

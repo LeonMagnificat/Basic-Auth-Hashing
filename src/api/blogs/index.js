@@ -1,6 +1,7 @@
 import express from "express";
 import q2m from "query-to-mongo";
 import { checkBlogSchema, getbadRequest } from "./validator.js";
+import { basicAuth } from "../../library/authentications/basicAuth.js";
 import blogModel from "./model.js";
 import commentModel from "../comments/model.js";
 
@@ -16,12 +17,24 @@ blogRouter.post("/", checkBlogSchema, getbadRequest, async (request, response, n
   }
 });
 
-blogRouter.get("/", async (request, response, next) => {
+blogRouter.get("/", basicAuth, async (request, response, next) => {
   try {
     const mongoQuerry = q2m(request.query);
     console.log("QUERY:", mongoQuerry);
-    const blogs = await blogModel.find(mongoQuerry.criteria, mongoQuerry.options.fields).limit(mongoQuerry.options.limit).skip(mongoQuerry.options.skip).sort(mongoQuerry.options.sort);
+    const blogs = await blogModel
+      .find(mongoQuerry.criteria, mongoQuerry.options.fields)
+      .limit(mongoQuerry.options.limit)
+      .skip(mongoQuerry.options.skip)
+      .sort(mongoQuerry.options.sort)
+      .populate({ path: "comments" });
     response.status(200).send(blogs);
+  } catch (error) {
+    next(error);
+  }
+});
+blogRouter.get("/myBlogs", basicAuth, async (request, response, next) => {
+  try {
+    response.status(200).send(request.user);
   } catch (error) {
     next(error);
   }
