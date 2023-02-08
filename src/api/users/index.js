@@ -3,6 +3,7 @@ import q2m from "query-to-mongo";
 import UserModel from "./model.js";
 import { basicAuth } from "../../library/authentications/basicAuth.js";
 import blogModel from "../blogs/model.js";
+import { adminOnly } from "../../library/authentications/adminAuth.js";
 
 const userRouter = express.Router();
 
@@ -16,10 +17,10 @@ userRouter.post("/", async (request, response, next) => {
   }
 });
 
-userRouter.get("/", basicAuth, async (request, response, next) => {
+userRouter.get("/", basicAuth, adminOnly, async (req, res, next) => {
   try {
-    const Users = await UserModel.find().populate({ path: "blogs" });
-    response.status(200).send(Users);
+    const Users = await UserModel.find();
+    res.status(200).send(Users);
   } catch (error) {
     next(error);
   }
@@ -55,9 +56,10 @@ userRouter.put("/:id", async (request, response, next) => {
   }
 });
 
-userRouter.delete("/:id", async (request, response, next) => {
+userRouter.delete("/:id", basicAuth, async (request, response, next) => {
   try {
     const id = request.params.id;
+    console.log("USER: ", request.user);
 
     const User = await UserModel.findByIdAndDelete(id);
     response.status(200).send("Deleted");
@@ -68,7 +70,7 @@ userRouter.delete("/:id", async (request, response, next) => {
 
 //----------------------------------------------------------------
 
-userRouter.post("/:userId/blogs", async (req, res, next) => {
+userRouter.post("/myProfile/blogs", basicAuth, async (req, res, next) => {
   try {
     const newBlog = new blogModel(req.body);
     await newBlog.save();
@@ -77,10 +79,13 @@ userRouter.post("/:userId/blogs", async (req, res, next) => {
 
     console.log(newBlog._id);
 
-    const relatedUser = await UserModel.findByIdAndUpdate(req.params.userId, { $push: { blogs: blogID.toString() } }, { new: true, runValidators: true });
+    // req.user.blogs.push(newBlog);
+    // console.log("USER:", req.user);
 
-    await relatedUser.save();
-    res.status(200).send(newBlog);
+    const relatedUser = await UserModel.findByIdAndUpdate(req.user._id, { $push: { blogs: blogID.toString() } }, { new: true, runValidators: true }).populate({ path: "blogs" });
+
+    // await relatedUser.save();
+    res.status(200).send(relatedUser);
   } catch (error) {
     next(error);
   }

@@ -8,6 +8,7 @@ const userSchema = new Schema(
     name: { type: "string", required: true },
     email: { type: "string", required: true },
     password: { type: "string", required: true },
+    role: { type: "string", required: true },
     blogs: [{ type: Schema.Types.ObjectId, ref: "blog" }],
   },
 
@@ -38,6 +39,8 @@ userSchema.static("checkUserExistance", async function (email, password) {
     return null;
   } else {
     const checkPasswordMatch = await bcrypt.compare(password, user.password);
+
+    console.log("PW:", password, "PW2:", user.password, checkPasswordMatch);
     if (checkPasswordMatch) {
       return user;
     } else {
